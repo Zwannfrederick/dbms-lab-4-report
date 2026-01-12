@@ -25,7 +25,7 @@ Aşağıda kutucuk (checkbox) ile gösterilen maddelerden en az birini seçtiği
 
 - [ ]  Veritabanları, Sık kullanılan sayfaları bellekte (RAM) kopyalar mı (caching) ?
 
-- [ ]  LRU / CLOCK gibi algoritmaları
+- [X]  LRU / CLOCK gibi algoritmaları
 - [ ]  Diske yapılan I/O nasıl minimize ederler?
 
 # 2. Veri Yapıları Perspektifi
@@ -39,46 +39,66 @@ Aşağıda kutucuk (checkbox) ile gösterilen maddelerden en az birini seçtiği
 
 DB diske yazarken:
 
-- [ ]  WAL (Write Ahead Log) İlkesi
+- [X]  WAL (Write Ahead Log) İlkesi
 - [ ]  Log disk (fsync vs write) sistem çağrıları farkı
 
 ---
 
 # Özet Tablo
 
-| Kavram      | Bellek          | Disk / DB      |
-| ----------- | --------------- | -------------- |
-| Adresleme   | Pointer         | Page + Offset  |
-| Hız         | O(1)            | Page IO        |
-| PK          | Yok             | Index anahtarı |
-| Veri yapısı | Array / Pointer | B+Tree         |
-| Cache       | CPU cache       | Buffer Pool    |
+| Kavram      | Bellek (Clock Algoritması) | Disk / DB (WAL Mimarisi)        |
+|-------------|----------------------------|---------------------------------|
+| Adresleme   | Buffer ID (Pointer)        | LSN (Log Sequence Number)       |
+| Hız         | O(1)                       | Sequential Write (Sıralı Yazma) |
+| Öncelik     | Usage Count                | Veri Güvenliği                  |
+| Veri yapısı | Circular Buffer (Ring)     | Append-Only Log                 |
+| Yönetim     | StrategyGetBuffer          | ReserveXLogInsertLocation       |
 
 ---
 
-# Video [Linki](https://www.youtube.com/watch?v=Nw1OvCtKPII&t=2635s) 
-Ekran kaydı. 2-3 dk. açık kaynak V.T. kodu üzerinde konunun gösterimi. Video kendini tanıtma ile başlamalıdır (Numara, İsim, Soyisim, Teknik İlgi Alanları). 
+# Video [Linki](https://youtu.be/uB64QI5EHfs)
 
 ---
 
-# Açıklama (Ort. 600 kelime)
+# Açıklama 
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse lacinia luctus urna, vel aliquet lacus facilisis ac. Donec quis placerat orci, efficitur consectetur lacus. Sed rhoncus erat ex, at sagittis velit mollis et. Aliquam enim orci, sollicitudin sit amet libero quis, mollis ultricies risus. Fusce tempor, felis a consequat tristique, dolor magna convallis nulla, vel ullamcorper magna mauris non ipsum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Nam quis imperdiet ex, at blandit sapien. Aliquam lacinia erat ac ipsum fringilla, quis vestibulum augue posuere. Nulla in enim nulla. Nunc euismod odio mauris, sed sollicitudin ex condimentum non. In efficitur egestas enim. Fusce tempus erat quis placerat convallis.
+Sistem Programlama ve Veri Yapıları Perspektifiyle PostgreSQL Performans Analizi
+Modern Veritabanı Yönetim Sistemleri (DBMS), donanım kaynaklarının (CPU, RAM ve Disk) fiziksel sınırlarını aşmak ve kullanıcıya "sonsuz bellek" illüzyonu sunmak üzerine kuruludur. Bu çalışmada, PostgreSQL açık kaynak kodları üzerinde yaptığım incelemelerde; bellek yönetiminde kullanılan Clock Sweep (Saat) algoritması ve disk yönetiminde kullanılan WAL (Write Ahead Log) mimarisi üzerinden performans optimizasyonlarını analiz ettim.
 
-Nam sit amet tincidunt ante. Pellentesque sit amet quam interdum, pellentesque dui vel, iaculis elit. Donec sed dui sodales nulla dignissim tincidunt. Maecenas semper metus id fermentum vulputate. Pellentesque lobortis hendrerit venenatis. Nullam imperdiet, ex eget ultricies egestas, mauris nunc aliquam ante, sed consectetur tellus ex vel leo. Nunc ut erat dapibus, auctor dolor eu, pretium sem. In lacinia congue eros et finibus. Aenean auctor, leo a feugiat placerat, urna felis lacinia purus, laoreet volutpat mi nisl eget dui. Ut vitae condimentum leo.
+### 1. Bellek Yönetimi ve Clock Algoritması (freelist.c)
 
-Maecenas ex diam, vehicula et nulla vel, mattis viverra metus. Nam at ex scelerisque, semper augue lobortis, semper est. Etiam id pretium odio, eget rutrum neque. Pellentesque blandit magna vel aliquam gravida. Nullam massa nisl, imperdiet at dapibus non, cursus vehicula turpis. Vestibulum rutrum hendrerit augue. Aliquam id nisi id arcu tempor venenatis vel nec erat. Morbi sed posuere erat. Morbi et sollicitudin urna. Suspendisse ullamcorper vitae purus sit amet sodales. Nam ut tincidunt ipsum, ut varius erat. Duis congue magna nec euismod condimentum. In hac habitasse platea dictumst. Nunc mattis odio sed enim laoreet imperdiet. In hac habitasse platea dictumst. Nullam tincidunt quis.
+Sistem programlama derslerinde öğrendiğimiz en temel darboğaz, disk I/O işlemlerinin RAM erişimine göre binlerce kat yavaş olmasıdır. Bu nedenle veritabanları, diskteki veri bloklarını (Pages) "Buffer Pool" adı verilen bir bellek alanında önbellekler. Ancak RAM sınırlıdır ve dolduğunda hangi sayfanın atılacağına (eviction) karar vermek bir optimizasyon problemidir.
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse lacinia luctus urna, vel aliquet lacus facilisis ac. Donec quis placerat orci, efficitur consectetur lacus. Sed rhoncus erat ex, at sagittis velit mollis et. Aliquam enim orci, sollicitudin sit amet libero quis, mollis ultricies risus. Fusce tempor, felis a consequat tristique, dolor magna convallis nulla, vel ullamcorper magna mauris non ipsum. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Nam quis imperdiet ex, at blandit sapien. Aliquam lacinia erat ac ipsum fringilla, quis vestibulum augue posuere. Nulla in enim nulla. Nunc euismod odio mauris, sed sollicitudin ex condimentum non. In efficitur egestas enim. Fusce tempus erat quis placerat convallis.
+Genel kanının aksine, PostgreSQL saf bir LRU (Least Recently Used) algoritması kullanmaz. Standart LRU, her erişimde bir bağlı listenin (Linked List) güncellenmesini gerektirir. Çok çekirdekli (Multi-threaded) sistemlerde bu durum, liste üzerinde sürekli kilitlenme (lock contention) yaratır ve performansı düşürür.
 
-Nam sit amet tincidunt ante. Pellentesque sit amet quam interdum, pellentesque dui vel, iaculis elit. Donec sed dui sodales nulla dignissim tincidunt. Maecenas semper metus id fermentum vulputate. Pellentesque lobortis hendrerit venenatis. Nullam imperdiet, ex eget ultricies egestas, mauris nunc aliquam ante, sed consectetur tellus ex vel leo. Nunc ut erat dapibus, auctor dolor eu, pretium sem. In lacinia congue eros et finibus. Aenean auctor, leo a feugiat placerat, urna felis lacinia purus, laoreet volutpat mi nisl eget dui. Ut vitae condimentum leo.
+İncelediğim src/backend/storage/buffer/freelist.c dosyasındaki StrategyGetBuffer fonksiyonu, bunun yerine Clock Sweep algoritmasını uygular. Kodda gördüğümüz ClockSweepTick() fonksiyonu ve onu takip eden sonsuz döngü (for(;;)), dairesel bir veri yapısı üzerinde dönen bir saat ibresini temsil eder. Algoritma şu mantıkla çalışır:
 
-Maecenas ex diam, vehicula et nulla vel, mattis viverra metus. Nam at ex scelerisque, semper augue lobortis, semper est. Etiam id pretium odio, eget rutrum neque. Pellentesque blandit magna vel aliquam gravida. Nullam massa nisl, imperdiet at dapibus non, cursus vehicula turpis. Vestibulum rutrum hendrerit augue. Aliquam id nisi id arcu tempor venenatis vel nec erat. Morbi sed posuere erat. Morbi et sollicitudin urna. Suspendisse ullamcorper vitae purus sit amet sodales. Nam ut tincidunt ipsum, ut varius erat. Duis congue magna nec euismod condimentum. In hac habitasse platea dictumst. Nunc mattis odio sed enim laoreet imperdiet. In hac habitasse platea dictumst. Nullam tincidunt quis.
+İbre bir sayfaya geldiğinde usage_count (kullanım) değerini atomik olarak okur.
 
+Eğer değer > 0 ise, sayfa yakın zamanda kullanılmış demektir. Algoritma sayfayı atmak yerine skorunu 1 azaltır (local_buf_state -= BUF_USAGECOUNT_ONE) ve ona "İkinci Bir Şans" vererek pas geçer.
+
+Eğer değer 0 ise, bu sayfa "Soğuk Veri" (Cold Data) olarak işaretlenir ve return buf komutu ile kurban seçilerek bellekten atılır.
+
+Bu yöntem, karmaşık liste güncellemeleri yerine basit bit manipülasyonları kullandığı için O(1) karmaşıklığına yakın bir hızda çalışır ve sistem kaynaklarını minimize eder.
+
+### 2. Disk Yönetimi ve WAL Mimarisi (xloginsert.c)
+
+RAM ne kadar hızlıysa, disk o kadar güvenilirdir (Persistent). Ancak veritabanına gelen her yazma isteğini doğrudan ana veri dosyalarına (Heap) yazmak, diskin okuma/yazma kafasını sürekli farklı sektörlere sıçratacağı için (Random I/O) performansı öldürür. PostgreSQL bu sorunu WAL (Write Ahead Log) mekanizması ile çözer.
+
+src/backend/access/transam/xloginsert.c dosyasında incelediğim XLogInsertRecord fonksiyonu, veriyi diske yazmadan önce bir paket haline getirir. Ancak buradaki asıl mühendislik dehası, fonksiyonun içinde çağrılan ReserveXLogInsertLocation bölümündedir.
+
+Kod incelememde tespit ettiğim endbytepos = startbytepos + size; matematiksel işlemi, bu mimarinin "Append-Only" (Sadece Ekleme) çalıştığının en net kanıtıdır. Sistem, veriyi diskin rastgele bir yerine değil, mevcut imlecin (cursor) kaldığı son noktanın tam üzerine ekler. Bu sayede yazma işlemi Sıralı (Sequential Write) hale gelir. Sıralı yazma, mekanik disklerde kafa hareketini sıfıra indirdiği gibi, SSD'lerde de yazma verimliliğini maksimize eder.
+
+Ayrıca kodun START_CRIT_SECTION() bloğu ile başlaması, bu işlemin işletim sistemi seviyesinde kesintiye uğramaması gereken (Atomic) bir süreç olduğunu gösterir. Veri RAM'den diske, CopyXLogRecordToWAL fonksiyonu ile sıralı bir şekilde kopyalanarak veri bütünlüğü garanti altına alınır.
+
+### Sonuç
+
+Özetle PostgreSQL; okuma performansını, kilit (lock) gerektirmeyen ve dairesel veri yapısı kullanan Clock Algoritması ile RAM üzerinde optimize ederken; yazma performansını ve güvenliğini, sıralı erişim mantığına dayanan WAL yapısı ile disk üzerinde sağlamaktadır. Bu iki mekanizma, Sistem Programlama ve Veri Yapıları prensiplerinin gerçek hayattaki en güçlü uygulamalarındandır.
 ## VT Üzerinde Gösterilen Kaynak Kodları
 
-Açıklama [Linki](https://...) \
-Açıklama [Linki](https://...) \
-Açıklama [Linki](https://...) \
-... \
-...
+**Bellek Yönetimi (Clock Algoritması - `StrategyGetBuffer`):** \
+[https://github.com/postgres/postgres/blob/master/src/backend/storage/buffer/freelist.c](https://github.com/postgres/postgres/blob/master/src/backend/storage/buffer/freelist.c)
+
+**Disk Yönetimi - WAL (Sıralı Yazma - `XLogInsertRecord`):** \
+[https://github.com/postgres/postgres/blob/master/src/backend/access/transam/xloginsert.c](https://github.com/postgres/postgres/blob/master/src/backend/access/transam/xloginsert.c)
+
